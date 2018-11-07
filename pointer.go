@@ -57,6 +57,23 @@ type JSONSetable interface {
 	JSONSet(string, interface{}) error
 }
 
+type ErrNotFound struct {
+	msg string
+}
+
+func (e ErrNotFound) Error() string {
+	return e.msg
+}
+
+func IsNotFound(e error) bool {
+	_, ok := e.(ErrNotFound)
+	return ok
+}
+
+func newErrNotFound(format string, args... interface{}) ErrNotFound {
+	return ErrNotFound{ msg: fmt.Sprintf(format, args...) }
+}
+
 // New creates a new json pointer for the given string
 func New(jsonPointerString string) (Pointer, error) {
 
@@ -126,7 +143,7 @@ func getSingleImpl(node interface{}, decodedToken string, nameProvider *swag.Nam
 		}
 		nm, ok := nameProvider.GetGoNameForType(rValue.Type(), decodedToken)
 		if !ok {
-			return nil, kind, fmt.Errorf("object has no field %q", decodedToken)
+			return nil, kind, newErrNotFound("object has no field %q", decodedToken)
 		}
 		fld := rValue.FieldByName(nm)
 		return fld.Interface(), kind, nil
@@ -138,7 +155,7 @@ func getSingleImpl(node interface{}, decodedToken string, nameProvider *swag.Nam
 		if mv.IsValid() && !swag.IsZero(mv) {
 			return mv.Interface(), kind, nil
 		}
-		return nil, kind, fmt.Errorf("object has no key %q", decodedToken)
+		return nil, kind, newErrNotFound("object has no key %q", decodedToken)
 
 	case reflect.Slice:
 		tokenIndex, err := strconv.Atoi(decodedToken)
@@ -147,14 +164,14 @@ func getSingleImpl(node interface{}, decodedToken string, nameProvider *swag.Nam
 		}
 		sLength := rValue.Len()
 		if tokenIndex < 0 || tokenIndex >= sLength {
-			return nil, kind, fmt.Errorf("index out of bounds array[0,%d] index '%d'", sLength-1, tokenIndex)
+			return nil, kind, newErrNotFound("index out of bounds array[0,%d] index '%d'", sLength-1, tokenIndex)
 		}
 
 		elem := rValue.Index(tokenIndex)
 		return elem.Interface(), kind, nil
 
 	default:
-		return nil, kind, fmt.Errorf("invalid token reference %q", decodedToken)
+		return nil, kind, newErrNotFound("invalid token reference %q", decodedToken)
 	}
 
 }
